@@ -1,0 +1,26 @@
+[project]
+name = "geospatial-llm-system"
+version = "0.1.0"
+description = "A local-first geospatial AI system."
+authors = [{ name = "Your Name", email = "your@email.com" }]
+requires-python = ">=3.10"
+
+dependencies = [
+    # Backend Dependencies
+    "fastapi",
+    "uvicorn[standard]", # For running the FastAPI server
+    "redis",             # For job queue and state management
+    "pydantic",          # For data validation and schemas
+    "pydantic-settings", # For loading config from .env files
+    "python-dotenv",
+
+    # Frontend Dependencies
+    "streamlit",
+    "requests",          # For the UI to call the backend API
+    "pandas",            # Often used with Streamlit for data display
+    "folium",            # For creating interactive maps
+    "streamlit-folium",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

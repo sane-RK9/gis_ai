@@ -8,18 +8,20 @@ requires-python = ">=3.10"
 dependencies = [
     # Backend Dependencies
     "fastapi",
-    "uvicorn[standard]", # For running the FastAPI server
-    "redis",             # For job queue and state management
-    "pydantic",          # For data validation and schemas
-    "pydantic-settings", # For loading config from .env files
+    "uvicorn[standard]",  # For running the FastAPI server
+    "redis",              # For job queue and state management
+    "pydantic",           # For data validation and schemas
+    "pydantic-settings",  # For loading config from .env files
     "python-dotenv",
-
-    # Frontend Dependencies
-    "streamlit",
-    "requests",          # For the UI to call the backend API
-    "pandas",            # Often used with Streamlit for data display
-    "folium",            # For creating interactive maps
-    "streamlit-folium",
+    "langchain",          
+    "langgraph",
+    "langchain_core",
+    "langchain_community",
+    "rasterio>=1.3.9",
+    "geopandas>=0.14.3",
+    "whitebox>=2.3.0",
+    "pyproj>=3.6.1",
+    "pystac>=1.8.0",
 ]
 
 [tool.setuptools.packages.find]

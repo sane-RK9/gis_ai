@@ -1,0 +1,60 @@
+# Use Ubuntu 22.04 as the base
+FROM ubuntu:22.04
+
+# Set non-interactive frontend to avoid prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- Layer 1: Install PPA and core system dependencies ---
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    software-properties-common \
+    gnupg \
+    git \
+    curl \
+    build-essential \
+    && add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable \
+    && apt-get update
+
+# --- Layer 2: Install modern geospatial libraries from the PPA ---
+RUN apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    python3-dev \
+    gdal-bin \
+    libgdal-dev \
+    libspatialindex-dev \
+    libgeos-dev \
+    libproj-dev \
+    libsqlite3-mod-spatialite \
+    spatialite-bin \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- Layer 3: Install Rust toolchain ---
+# This layer will be cached as long as the Rust version doesn't change.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+
+# --- Layer 4: Clone, build, and install WhiteboxTools from source ---
+WORKDIR /usr/local/src
+RUN git clone --depth 1 --branch v2.4.0 https://github.com/jblindsay/whitebox-tools.git && \
+    cd whitebox-tools/whitebox-tools-app && \
+    cargo build --release && \
+    mv target/release/whitebox_tools /usr/local/bin/ && \
+    # Clean up build artifacts and source code to keep the image small
+    cd / && \
+    rm -rf /usr/local/src/whitebox-tools && \
+    rm -rf $CARGO_HOME/registry $CARGO_HOME/git
+
+# --- Layer 5: Copy and install Python dependencies ---
+WORKDIR /app
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir --no-binary gdal -r requirements.txt
+
+# --- Layer 6: Set up workspace ---
+RUN mkdir -p /data_workspace
+VOLUME /data_workspace
+
+# Final command to keep container running
+CMD ["sleep", "infinity"]

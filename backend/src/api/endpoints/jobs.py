@@ -14,14 +14,30 @@ logger = logging.getLogger(__name__)
 async def submit_job(request: JobSubmitRequest):
     """Accepts a new geospatial analysis job."""
     job_id = str(uuid.uuid4())
+    logger.info(f"Received new job request. Assigning job_id: {job_id}")
     
     # Create initial status
-    initial_status = JobStatus(
-        job_id=job_id, 
-        status="pending", 
-        progress=0, 
-        message="Job accepted and queued for planning."
+    redis_service.set_job_status(
+        job_id, 
+        JobStatus(job_id=job_id, status="pending", message="Job accepted and queued for planning.")
     )
+
+    # Push the job to the planner agent's queue AND CHECK THE RESULT
+    success = redis_service.push_to_queue(
+        redis_service.PLANNER_QUEUE, 
+        {"job_id": job_id, "query": request.query}
+    )
+    if not success:
+        logger.error(f"Failed to push job {job_id} to planner queue")
+        # Clean up the status we just created
+        redis_service.delete_job_status(job_id) 
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to queue job for planning. Please try again later."
+        )
+
+    logger.info(f"Job {job_id} successfully queued for planner.")
+    return JobSubmitResponse(job_id=job_id)
     
     try:
         # Store the initial status

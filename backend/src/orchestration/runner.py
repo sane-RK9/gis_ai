@@ -1,9 +1,11 @@
-import logging
 import time
+import logging
+import threading
 from src.services import redis_service
 from .graph import WORKFLOW_GRAPH
 from .state import OrchestratorState
-import threading
+from src.core.schemas import JobStatus
+
 
 logger = logging.getLogger(__name__)
 

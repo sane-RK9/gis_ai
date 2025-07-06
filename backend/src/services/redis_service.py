@@ -14,8 +14,7 @@ EXECUTOR_QUEUE = "queue:executor"
 # TTL for job data (7 days)
 JOB_TTL = 7 * 24 * 60 * 60
 
-# --- Corrected Connection Handling ---
-# Create a single, globally shared connection pool.
+
 # The redis-py library will manage connections from this pool automatically.
 try:
     pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
@@ -68,6 +67,23 @@ def get_job_status(job_id: str) -> Optional[JobStatus]:
     except json.JSONDecodeError:
         logger.error(f"JSON decode error for job status {job_id}")
         return None
+def delete_job_status(job_id: str):
+    """Deletes a job's status key from Redis."""
+    try:
+        r = redis.Redis(connection_pool=pool)
+        r.delete(f"job_status:{job_id}")
+        logger.info(f"Deleted status for job {job_id}")
+    except redis.exceptions.RedisError as e:
+        logger.error(f"Redis error deleting job status for {job_id}: {e}")
+
+def delete_workflow_plan(job_id: str):
+    """Deletes a workflow plan key from Redis."""
+    try:
+        r = redis.Redis(connection_pool=pool)
+        r.delete(f"job_plan:{job_id}")
+        logger.info(f"Deleted plan for job {job_id}")
+    except redis.exceptions.RedisError as e:
+        logger.error(f"Redis error deleting workflow plan for {job_id}: {e}")
 
 # --- Workflow Plan Functions ---
 
@@ -122,13 +138,11 @@ def pop_from_queue(queue_name: str, timeout: int = 0) -> Optional[Dict[str, Any]
 
 # --- Health Check ---
 
-from fastapi import APIRouter as router
-from src.services import redis_service
-# Create a FastAPI router for health checks
-@router.get("/health")
 def health_check() -> bool:
     """Performs a health check on the Redis connection."""
     """Check Redis connectivity"""
-    if redis_service.health_check():
-        return {"status": "ok", "redis": "connected"}
-    return {"status": "error", "redis": "disconnected"}, 500
+    try:
+        r = redis.Redis(connection_pool=pool)
+        return r.ping()
+    except redis.exceptions.RedisError:
+        return False

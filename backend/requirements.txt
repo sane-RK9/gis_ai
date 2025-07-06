@@ -7,7 +7,7 @@ pyproj==3.6.1
 shapely==2.0.3
 
 # WhiteboxTools - The Python wrapper
-whitebox==2.4.0
+whitebox==2.3.6
 
 # Geospatial Utilities
 rtree==1.2.0

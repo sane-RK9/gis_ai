@@ -1,14 +1,19 @@
 from .base import GeospatialTool, ToolInput
-from pydantic import Field, conlist
+from pydantic import Field
+from typing import List, Type, Annotated 
+
+
+GdalScale = Annotated[List[float], Field(min_length=2, max_length=2)]
+GdalExtent = Annotated[List[float], Field(min_length=4, max_length=4)]
 
 class GdalTranslateInput(ToolInput):
     input_file: str = Field(..., description="Path to input raster file")
     output_file: str = Field(None, description="Path for output raster file")
     of: str = Field("GTiff", description="Output format")
     ot: str = Field(None, description="Output data type")
-    scale: conlist(float, min_items=2, max_items=2) = Field(
+    scale: GdalScale = Field(
         None, 
-        description="Scaling parameters [min, max]"
+        description="Scaling parameters [src_min, src_max, dst_min, dst_max] or [src_min, src_max]"
     )
 
 class GdalTranslateTool(GeospatialTool):
@@ -27,7 +32,7 @@ class GdalWarpInput(ToolInput):
     input_file: str = Field(..., description="Path to input raster file")
     output_file: str = Field(None, description="Path for output raster file")
     t_srs: str = Field(None, description="Target spatial reference")
-    te: conlist(float, min_items=4, max_items=4) = Field(
+    te: GdalExtent = Field(
         None,
         description="Target extent [minx, miny, maxx, maxy]"
     )

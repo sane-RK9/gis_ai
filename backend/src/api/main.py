@@ -1,5 +1,6 @@
 import logging
 from fastapi import FastAPI
+from fastapi import HTTPException
 from contextlib import asynccontextmanager
 from src.services import redis_service
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,15 @@ app.include_router(jobs.router, prefix="/api/v1", tags=["Jobs"])
 def read_root():
     return {"message": "Welcome to the Geospatial LLM System API"}
 
+# Health Check Endpoint
+@app.get("/api/v1/health", tags=["Health"])
+def get_health():
+    """Checks the health of the service and its dependencies."""
+    if redis_service.health_check():
+        return {"status": "ok", "redis_connection": "ok"}
+    else:
+        raise HTTPException(status_code=503, detail="Service Unavailable: Cannot connect to Redis")
+    
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)

@@ -1,4 +1,5 @@
 from .base import GeospatialTool, ToolInput
+from typing import List, Type
 from pydantic import Field
 
 class BreachDepressionsInput(ToolInput):

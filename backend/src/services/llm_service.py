@@ -1,7 +1,7 @@
 import os
 from langchain_community.llms import Ollama
 from langchain_community.chat_models import ChatOllama
-from langchain_core.outputs import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser
 
 class LLMService:
     def __init__(self, model: str = "llama3:8b", temperature: float = 0.2):

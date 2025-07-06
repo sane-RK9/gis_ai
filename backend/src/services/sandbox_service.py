@@ -11,9 +11,14 @@ class SandboxService:
     def __init__(self, container_name="gvisor-worker"):
         self.container_name = container_name
         self.data_workspace = "/data_workspace"
+        # Default to 'gvisor-worker' for standalone testing if not set
+        self.container_name = os.getenv("GVISOR_WORKER_CONTAINER_NAME", "gvisor-worker")
+        self.data_workspace_host = os.path.abspath("./data_workspace") # Path on the host
+        self.data_workspace_container = "/data_workspace" # Path inside the container
         
         # Ensure workspace exists
         os.makedirs(self.data_workspace, exist_ok=True)
+        logger.info(f"Sandbox configured to use worker container: '{self.container_name}'")
 
     def _generate_temp_path(self, prefix: str = "output") -> str:
         """Generate a unique temporary file path in the workspace"""
@@ -49,28 +54,56 @@ class SandboxService:
 
     def _execute_gdal_tool(self, tool_name: str, params: dict) -> dict:
         """Construct and execute GDAL command"""
-        # Generate output paths
-        input_file = params.get("input_file", "")
-        output_file = params.get("output_file", self._generate_temp_path() + ".tif")
-        
-        # Build command
+        # Ensure required parameters exist
+        input_file = params.get("input_file")
+        if not input_file:
+            raise ValueError(f"GDAL tool '{tool_name}' requires an 'input_file' parameter.")
+
+        # Generate a unique output path if not provided
+        output_file = params.get("output_file")
+        if not output_file:
+            output_file = self._generate_temp_path(prefix=tool_name) + ".tif"
+
+        # Start building the command
         cmd = [tool_name.replace("_", "-")]
         
-        # Add parameters
+        # Add optional flag parameters (e.g., -of, -ot)
         for param, value in params.items():
+            # Skip positional args, we'll add them at the end
             if param in ["input_file", "output_file"]:
                 continue
+            
+            # This is the key: only add the flag if the value is not None
             if value is not None:
+                cli_param = f"-{param.replace('_', '-')}"
                 if isinstance(value, list):
-                    cmd.extend([f"-{param}"] + [str(v) for v in value])
+                    # For list values, extend the command list
+                    cmd.extend([cli_param] + [str(v) for v in value])
                 else:
-                    cmd.extend([f"-{param}", str(value)])
+                    # For single values, append the flag and the value
+                    cmd.extend([cli_param, str(value)])
         
-        cmd.extend([input_file, output_file])
+        # Add the positional arguments (input and output files) at the end
+        cmd.append(input_file)
+        cmd.append(output_file)
+        
+        logger.info(f"Executing GDAL command: {' '.join(cmd)}")
         
         # Execute in sandbox
         stdout, stderr, returncode = self.run_command(cmd)
         
+        if returncode != 0:
+            logger.error(f"GDAL command failed with stderr: {stderr}")
+            # In case of failure, we still want to return the structured error
+            # but maybe we don't consider the output file valid.
+            return {
+                "output_file": None,
+                "error": stderr or stdout,
+                "stdout": stdout,
+                "stderr": stderr,
+                "returncode": returncode
+            }
+
         return {
             "output_file": output_file,
             "stdout": stdout,

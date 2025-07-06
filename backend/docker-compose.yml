@@ -18,14 +18,14 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./src:/app/src # For live-reloading code changes
+      - ./src:/app/src
       - geodata:/data_workspace
 
   gvisor-worker:
     build:
       context: .
       dockerfile: Dockerfile.gvisor
-    # runtime: runsc # Uncomment this line to use gVisor
+    # runtime: runsc # Commented out for Docker Desktop
     entrypoint: ["sleep", "infinity"]
     volumes:
       - geodata:/data_workspace
@@ -33,16 +33,20 @@ services:
   orchestrator:
     build:
       context: .
-      dockerfile: Dockerfile # It can reuse the same Dockerfile as the API
+      dockerfile: Dockerfile
     command: python -m src.orchestration.runner
     environment:
-      - REDIS_URL=redis://redis:6379/0 
-      # This tells the container where to find Ollama on the host machine
+      - REDIS_URL=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - GVISOR_WORKER_CONTAINER_NAME=backend-gvisor-worker-1
     depends_on:
       - redis
+      - gvisor-worker
     volumes:
-      - ./src:/app/src # For live-reloading code changes
+      # Mount the Docker socket from the host into the container
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount the source code for live-reloading
+      - ./src:/app/src
       - ./resources:/app/resources
       - geodata:/data_workspace
 

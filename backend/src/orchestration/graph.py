@@ -19,11 +19,48 @@ def planner_node(state: OrchestratorState) -> dict:
         logger.error(f"Planning failed for job {state.job_id}: {e}", exc_info=True)
         return {"error_message": f"Planning failed: {str(e)}"}
 
+def _resolve_params(params: dict, state: OrchestratorState) -> dict:
+    """Resolves placeholder values in parameters from previous step results."""
+    resolved_params = {}
+    for key, value in params.items():
+        if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
+            # This is a placeholder, e.g., "{steps.step1.result.items_found}"
+            placeholder = value.strip('{}')
+            parts = placeholder.split('.')
+            try:
+                # e.g., parts = ['steps', 'step1', 'result', 'items_found']
+                if parts[0] == 'steps':
+                    step_id_to_find = parts[1]
+                    # Find the completed step in the plan
+                    source_step = next((s for s in state.plan.steps if s.step_id == step_id_to_find), None)
+                    if source_step and source_step.status == 'completed':
+                        # Traverse the result dictionary
+                        resolved_value = source_step
+                        for part in parts[2:]: # Traverse from 'result' onwards
+                            # Handle list indices like 'results[0]'
+                            if '[' in part and part.endswith(']'):
+                                field_name, index_str = part.split('[')
+                                index = int(index_str[:-1])
+                                resolved_value = resolved_value[field_name][index]
+                            else:
+                                resolved_value = getattr(resolved_value, part) if hasattr(resolved_value, part) else resolved_value[part]
+                        
+                        resolved_params[key] = resolved_value
+                        continue
+            except (KeyError, IndexError, AttributeError, ValueError) as e:
+                raise ValueError(f"Could not resolve placeholder '{value}': {e}") from e
+        
+        # Not a placeholder, use the value as is
+        resolved_params[key] = value
+        
+    return resolved_params
+
 def tool_executor_node(state: OrchestratorState) -> dict:
+    """Executes the current step of the workflow, with parameter resolution."""
     logger.info(f"---TOOL_EXECUTOR_NODE: Job {state.job_id}, Step {state.current_step_index}---")
     
-    plan = state.plan # USE DOT NOTATION
-    current_step_index = state.current_step_index # USE DOT NOTATION
+    plan = state.plan
+    current_step_index = state.current_step_index
 
     if not plan or current_step_index >= len(plan.steps):
         return {"error_message": "Execution error: Attempted to run step out of bounds."}
@@ -31,13 +68,16 @@ def tool_executor_node(state: OrchestratorState) -> dict:
     step = plan.steps[current_step_index]
     state.update_redis() 
     try:
+        resolved_params = _resolve_params(step.params, state)
+        logger.info(f"Resolved params for step {step.step_id}: {resolved_params}")
+
         tool = get_tool_by_name(step.tool_name)
-        result = tool.execute(step.params)
+        result = tool.execute(resolved_params) 
         
         step.status = "completed"
         step.result = result
         
-        new_intermediate_results = state.intermediate_results + [result] # USE DOT NOTATION
+        new_intermediate_results = state.intermediate_results + [result]
 
         return {
             "plan": plan,
@@ -48,6 +88,7 @@ def tool_executor_node(state: OrchestratorState) -> dict:
         step.status = "failed"
         step.result = {"error": str(e)}
         return {"plan": plan, "error_message": f"Step '{step.description}' failed."}
+
 
 def validation_and_increment_node(state: OrchestratorState) -> dict:
     logger.info(f"---VALIDATION_NODE: Job {state.job_id}, Step {state.current_step_index}---")

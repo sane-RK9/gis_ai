@@ -55,13 +55,29 @@ Guidelines:
         })
 
 # Mock implementation for testing purposes
+# In MockPlannerAgent class
 class MockPlannerAgent:
     def generate_plan(self, query: str) -> WorkflowPlan:
-        # This is a simplified mock plan for testing
         return WorkflowPlan(
             job_id="mock_job",
             steps=[
-                WorkflowStep(step_id="step1", tool_name="stac_search", description="Find imagery", params={"bbox": [0,0,1,1]}),
-                WorkflowStep(step_id="step2", tool_name="gdal_translate", description="Convert format", params={"input_file": "/data_workspace/S2A_12345.tif"})
+                WorkflowStep(
+                    step_id="step1", 
+                    tool_name="stac_search", 
+                    description="Find imagery", 
+                    params={"bbox": [0,0,1,1]},
+                    reasoning="First, I need to find the relevant satellite images for the area."
+                ),
+                WorkflowStep(
+                    step_id="step2", 
+                    tool_name="gdal_translate", 
+                    description="Convert image format to cloud-optimized GeoTIFF.", 
+                    params={
+                        # This special string tells the executor where to get the value.
+                        "input_file": "{steps.step1.result.results[0].asset_href}",
+                        "of": "COG"
+                    },
+                    reasoning="Next, I will convert the found image to a Cloud-Optimized GeoTIFF for efficient processing."
+                )
             ]
         )
